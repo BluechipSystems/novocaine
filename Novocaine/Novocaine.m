@@ -118,6 +118,7 @@ static Novocaine *audioManager = nil;
 @property (nonatomic, assign, readwrite) BOOL playing;
 @property (nonatomic, assign, readwrite) float *inData;
 @property (nonatomic, assign, readwrite) float *outData;
+@property (nonatomic, assign, readwrite) BOOL isSetup;
 
 #if defined (USING_OSX)
 @property (nonatomic, assign) AudioDeviceID *deviceIDs;
@@ -191,10 +192,12 @@ static Novocaine *audioManager = nil;
         // self.playThroughEnabled = NO;
 		
 		// Fire up the audio session ( with steady error checking ... )
-        [self setupAudioSession];
+        //[self setupAudioSession];
         
         // start audio units
-        [self setupAudioUnits];
+        //[self setupAudioUnits];
+        
+        [self startAudio];
 		
 		return self;
 		
@@ -692,6 +695,23 @@ static Novocaine *audioManager = nil;
 
 #endif
 
+- (void)startAudio {
+    if (!self.isSetup) {
+        return;
+    }
+    
+    [self setupAudioSession];
+    [self setupAudioUnits];
+    
+    self.isSetup = YES;
+}
+
+- (void)tearDownAudio {
+    if (!self.isSetup) {
+        return;
+    }
+    self.isSetup = NO;
+}
 
 
 - (void)pause {
