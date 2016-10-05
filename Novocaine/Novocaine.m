@@ -195,12 +195,12 @@ static Novocaine *audioManager = nil;
         // self.playThroughEnabled = NO;
 		
 		// Fire up the audio session ( with steady error checking ... )
-        //[self setupAudioSession];
+        [self setupAudioSession];
         
         // start audio units
         //[self setupAudioUnits];
         
-        [self startAudio];
+        //[self startAudio];
 		
 		return self;
 		
@@ -282,10 +282,6 @@ static Novocaine *audioManager = nil;
         NSLog(@"Couldn't activate audio session: %@", err);
     }
     [self checkAudioSource];
-#elif defined ( USING_OSX )
-    // TODO: grab the audio device
-    [self enumerateAudioDevices];
-    self.inputAvailable = YES;
 #endif
 }
 
@@ -319,7 +315,10 @@ static Novocaine *audioManager = nil;
     CheckError( AudioSessionSetProperty(kAudioSessionProperty_PreferredHardwareSampleRate, sizeof(F64sampleRate), &F64sampleRate), "Couldn't set the preferred sample rate");
     
 #endif
-
+    
+    // Set the audio session active
+    CheckError( AudioSessionSetActive(YES), "Couldn't activate the audio session");
+    
     [self checkSessionProperties];
     
 #endif
@@ -733,7 +732,7 @@ static Novocaine *audioManager = nil;
         return;
     }
     
-    [self setupAudioSession];
+    //[self setupAudioSession];
     [self setupAudioUnits];
     
     self.isSetup = YES;
