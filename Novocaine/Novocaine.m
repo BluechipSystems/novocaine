@@ -39,6 +39,9 @@
 #define kOutputBus 0
 #define kDefaultDevice 999999
 
+#define sampleRateT 8000.0
+#define IOBufferDuration 512.0/sampleRateT
+
 #import "TargetConditionals.h"
 
 
@@ -308,11 +311,15 @@ static Novocaine *audioManager = nil;
     // Set the buffer size, this will affect the number of samples that get rendered every time the audio callback is fired
     // A small number will get you lower latency audio, but will make your processor work harder
 #if !TARGET_IPHONE_SIMULATOR
-    Float32 preferredBufferSize = 0.0232;
+    //Float32 preferredBufferSize = 0.0232;
+    Float32 preferredBufferSize = IOBufferDuration;
     CheckError( AudioSessionSetProperty(kAudioSessionProperty_PreferredHardwareIOBufferDuration, sizeof(preferredBufferSize), &preferredBufferSize), "Couldn't set the preferred buffer duration");
+    
+    Float64 F64sampleRate = sampleRateT;
+    CheckError( AudioSessionSetProperty(kAudioSessionProperty_PreferredHardwareSampleRate, sizeof(F64sampleRate), &F64sampleRate), "Couldn't set the preferred sample rate");
+    
 #endif
 
-    
     [self checkSessionProperties];
     
 #endif
@@ -337,7 +344,7 @@ static Novocaine *audioManager = nil;
 #elif defined (USING_IOS)
     AudioComponentDescription inputDescription = {0};	
     inputDescription.componentType = kAudioUnitType_Output;
-    inputDescription.componentSubType = kAudioUnitSubType_RemoteIO;
+    inputDescription.componentSubType = kAudioUnitSubType_VoiceProcessingIO;
     inputDescription.componentManufacturer = kAudioUnitManufacturer_Apple;
     
 #endif
@@ -418,8 +425,25 @@ static Novocaine *audioManager = nil;
                "Couldn't get the hardware output stream format");
     
     // TODO: check this works on iOS!
-    _inputFormat.mSampleRate = 44100.0;
-    _outputFormat.mSampleRate = 44100.0;
+    _inputFormat.mSampleRate = sampleRateT;
+    _outputFormat.mSampleRate = sampleRateT;
+    
+    _inputFormat.mFormatID = kAudioFormatLinearPCM;
+    _inputFormat.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagsNativeEndian | kAudioFormatFlagIsPacked;
+    _inputFormat.mChannelsPerFrame = 1;
+    _inputFormat.mBitsPerChannel = 8 * sizeof(float);
+    _inputFormat.mFramesPerPacket = 1;
+    _inputFormat.mBytesPerFrame = sizeof(float) * _inputFormat.mChannelsPerFrame;
+    _inputFormat.mBytesPerPacket = _inputFormat.mBytesPerFrame * _inputFormat.mFramesPerPacket;
+    
+    _outputFormat.mFormatID = kAudioFormatLinearPCM;
+    _outputFormat.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagsNativeEndian | kAudioFormatFlagIsPacked;
+    _outputFormat.mChannelsPerFrame = 1;
+    _outputFormat.mBitsPerChannel = 8 * sizeof(float);
+    _outputFormat.mFramesPerPacket = 1;
+    _outputFormat.mBytesPerFrame = sizeof(float) * _outputFormat.mChannelsPerFrame;
+    _outputFormat.mBytesPerPacket = _outputFormat.mBytesPerFrame * _outputFormat.mFramesPerPacket;
+
     self.samplingRate = _inputFormat.mSampleRate;
     self.numBytesPerSample = _inputFormat.mBitsPerChannel / 8;
     
@@ -431,6 +455,15 @@ static Novocaine *audioManager = nil;
 									&_outputFormat,
 									size),
 			   "Couldn't set the ASBD on the audio unit (after setting its sampling rate)");
+    
+    CheckError(AudioUnitSetProperty(_inputUnit,
+                                    kAudioUnitProperty_StreamFormat,
+                                    kAudioUnitScope_Input,
+                                    kOutputBus,
+                                    &_outputFormat,
+                                    size),
+               "Couldn't set the ASBD on the audio unit (after setting its sampling rate)");
+
     
     
 # elif defined ( USING_OSX )
@@ -962,25 +995,27 @@ void sessionPropertyListener(void *                  inClientData,
     
     // Check the number of input channels.
     // Find the number of channels
-    UInt32 size = sizeof(self.numInputChannels);
-    UInt32 newNumChannels;
-    CheckError( AudioSessionGetProperty(kAudioSessionProperty_CurrentHardwareInputNumberChannels, &size, &newNumChannels), "Checking number of input channels");
-    self.numInputChannels = newNumChannels;
+    //UInt32 size = sizeof(self.numInputChannels);
+    //UInt32 newNumChannels;
+    //CheckError( AudioSessionGetProperty(kAudioSessionProperty_CurrentHardwareInputNumberChannels, &size, &newNumChannels), "Checking number of input channels");
+    //self.numInputChannels = newNumChannels;
     //    self.numInputChannels = 1;
-    NSLog(@"We've got %u input channels", (unsigned int)self.numInputChannels);
+    //NSLog(@"We've got %u input channels", (unsigned int)self.numInputChannels);
     
+    self.numInputChannels = 1;
     
     // Check the number of input channels.
     // Find the number of channels
-    CheckError( AudioSessionGetProperty(kAudioSessionProperty_CurrentHardwareOutputNumberChannels, &size, &newNumChannels), "Checking number of output channels");
-    self.numOutputChannels = newNumChannels;
+    //CheckError( AudioSessionGetProperty(kAudioSessionProperty_CurrentHardwareOutputNumberChannels, &size, &newNumChannels), "Checking number of output channels");
+    //self.numOutputChannels = newNumChannels;
     //    self.numOutputChannels = 1;
-    NSLog(@"We've got %u output channels", (unsigned int)self.numOutputChannels);
+    //NSLog(@"We've got %u output channels", (unsigned int)self.numOutputChannels);
+    self.numOutputChannels = 1;
     
     
     // Get the hardware sampling rate. This is settable, but here we're only reading.
     Float64 currentSamplingRate;
-    size = sizeof(currentSamplingRate);
+    UInt32 size = sizeof(currentSamplingRate);
     CheckError( AudioSessionGetProperty(kAudioSessionProperty_CurrentHardwareSampleRate, &size, &currentSamplingRate), "Checking hardware sampling rate");
     self.samplingRate = currentSamplingRate;
     NSLog(@"Current sampling rate: %f", self.samplingRate);
@@ -994,6 +1029,7 @@ void sessionInterruptionListener(void *inClientData, UInt32 inInterruption) {
 	if (inInterruption == kAudioSessionBeginInterruption) {
 		NSLog(@"Begin interuption");
 		sm.inputAvailable = NO;
+        [sm pause];
 	}
 	else if (inInterruption == kAudioSessionEndInterruption) {
 		NSLog(@"End interuption");	
