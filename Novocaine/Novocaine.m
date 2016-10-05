@@ -696,7 +696,7 @@ static Novocaine *audioManager = nil;
 #endif
 
 - (void)startAudio {
-    if (!self.isSetup) {
+    if (self.isSetup) {
         return;
     }
     
