@@ -742,6 +742,30 @@ static Novocaine *audioManager = nil;
     if (!self.isSetup) {
         return;
     }
+    
+    [self pause];
+    
+    NSLog(@"Tearing down audio session");
+    
+    // Set the audio session not active
+    CheckError( AudioSessionSetActive(NO), "Couldn't de-activate the audio session");
+    
+#if defined ( USING_IOS )
+    // Remove a property listener, to listen to changes to the session
+    CheckError( AudioSessionRemovePropertyListenerWithUserData(kAudioSessionProperty_AudioRouteChange, sessionPropertyListener, (__bridge void*)self), "Couldn't remove audio session property listener");
+#endif
+    
+    // Uninitialize and dispose the audio input unit
+    CheckError( AudioUnitUninitialize(self.inputUnit), "Couldn't uninitialize audio input unit");
+    CheckError( AudioComponentInstanceDispose(self.inputUnit), "Couldn't dispose of audio input unit");
+    self.inputUnit = nil;
+    
+#if defined ( USING_OSX )
+    CheckError( AudioUnitUninitialize(self.outputUnit), "Couldn't uninitialize audio output unit");
+    CheckError( AudioComponentInstanceDispose(self.outputUnit), "Couldn't dispose of audio output unit");
+    self.outputUnit = nil;
+#endif
+    
     self.isSetup = NO;
 }
 
