@@ -66,7 +66,8 @@ extern "C" {
         
         fprintf(stderr, "Error: %s (%s)\n", operation, str);
         
-        exit(1);
+        // TODO: We shouldn't crash on production !!! 
+        //exit(1);
     }
     
     
