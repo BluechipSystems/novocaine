@@ -295,12 +295,19 @@ static Novocaine *audioManager = nil;
     
 #if defined ( USING_IOS )
     
-    // TODO: Move this somewhere more dynamic - should update category as appropriate to current application behavior
-    UInt32 sessionCategory = kAudioSessionCategory_PlayAndRecord;
-    CheckError( AudioSessionSetProperty (kAudioSessionProperty_AudioCategory,
-                                         sizeof (sessionCategory),
-                                         &sessionCategory), "Couldn't set audio category");    
-    
+    UInt32 category;
+    UInt32 propertySize = sizeof(category);
+    CheckError( AudioSessionGetProperty(kAudioSessionProperty_AudioCategory, &propertySize, &category), "Couldn't get audio category");
+    if (kAudioSessionCategory_PlayAndRecord != category)
+    {
+        // Do not set the same value for category. Because sometimes setting the same category causes changing of Audio Route
+        
+        // TODO: Move this somewhere more dynamic - should update category as appropriate to current application behavior
+        UInt32 sessionCategory = kAudioSessionCategory_PlayAndRecord;
+        CheckError( AudioSessionSetProperty (kAudioSessionProperty_AudioCategory,
+                                             sizeof (sessionCategory),
+                                             &sessionCategory), "Couldn't set audio category");
+    }
     
     // Add a property listener, to listen to changes to the session
     CheckError( AudioSessionAddPropertyListener(kAudioSessionProperty_AudioRouteChange, sessionPropertyListener, (__bridge void*)self), "Couldn't add audio session property listener");
